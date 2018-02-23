@@ -2,8 +2,7 @@
  *
  * @Component			CPULOADGEN
  * @Filename			cpuloadgen.c
- * @Description			Programmable CPU Load Generator,
- *					based on Dhrystone loops
+ * @Description			Programmable CPU Load Generator
  * @Author			Patrick Titiano (p-titiano@ti.com)
  * @Date			2010
  * @Copyright			Texas Instruments Incorporated
@@ -45,8 +44,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <memory.h>
-#include "dhry.h"
 #include <sys/time.h>
 #include <time.h>
 #include <sys/types.h>
@@ -76,21 +75,7 @@
 
 /* Global Variables: */
 
-Rec_Pointer Ptr_Glob, Next_Ptr_Glob;
-int Int_Glob;
-Boolean Bool_Glob;
-char Ch_1_Glob, Ch_2_Glob;
-int Arr_1_Glob [50];
-int Arr_2_Glob [50][50];
-
-char Reg_Define[] = "Register option selected.";
-
-Enumeration     Func_1();
-/* forward declaration necessary since Enumeration may not simply be int */
-
-extern char *builddate;
 extern double dtime();
-
 
 int cpu_count = -1;
 int *cpuloads = NULL;
@@ -98,7 +83,7 @@ long int duration = -1;
 pthread_t *threads = NULL;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 
-void dhryStone(unsigned int iterations);
+void workload(unsigned int iterations);
 void loadgen(unsigned int cpu, unsigned int load, unsigned int duration);
 
 /* ------------------------------------------------------------------------*//**
@@ -166,8 +151,6 @@ static int einval(const char *arg)
  *//*------------------------------------------------------------------------ */
 void sigterm_handler(void)
 {
-	unsigned int i;
-
 	printf("Halting load generation...\n");
 	fflush(stdout);
 
@@ -190,7 +173,7 @@ void *thread_loadgen(void *ptr)
 
 	cpu = *((unsigned int *) ptr);
 	pthread_mutex_unlock(&mutex1);
-	if (cpu < cpu_count) {
+	if (cpu < (unsigned int)cpu_count) {
 		loadgen(cpu, cpuloads[cpu], duration);
 	} else {
 		fprintf(stderr, "%s: invalid cpu argument!!! (%d)\n",
@@ -213,7 +196,6 @@ void *thread_loadgen(void *ptr)
  *//*------------------------------------------------------------------------ */
 int main(int argc, char *argv[])
 {
-	unsigned int cpu0load, cpu1load, cpu2load, cpu3load;
 	int i, ret, n, load;
 	long int duration2;
 
@@ -223,8 +205,7 @@ int main(int argc, char *argv[])
 	 */
 	signal(SIGTERM, (sighandler_t) sigterm_handler);
 
-	printf("CPULOADGEN (REV %s built %s)\n\n",
-		CPULOADGEN_REVISION, builddate);
+	printf("CPULOADGEN (REV %s)\n\n", CPULOADGEN_REVISION);
 
 	cpu_count = (int) sysconf(_SC_NPROCESSORS_ONLN);
 	if (cpu_count < 1) {
@@ -346,19 +327,21 @@ int main(int argc, char *argv[])
  * @param[in]		load: load to generate on that CPU ([1-100])
  * @param[in]		duration: how long this CPU core shall be loaded
  *				(in seconds)
- * @DESCRIPTION		Programmable CPU load generator. Use Dhrystone loops
+ * @DESCRIPTION		Programmable CPU load generator. Use simple deadloops
  *			to generate load, and apply PWM (Pulse Width Modulation)
  *			principle on it to make average CPU load vary between
  *			0 and 100%
  *//*------------------------------------------------------------------------ */
 void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 {
-	double dhrystone_start_time, dhrystone_end_time;
+	double workload_start_time, workload_end_time;
 	double idle_time_us;
 	double loadgen_start_time_us, active_time_us;
 	double total_time_us;
 	struct timeval tv_cpuloadgen_start, tv_cpuloadgen;
+#ifdef DEBUG
 	struct timeval tv_idle_start, tv_idle_stop;
+#endif
 	struct timezone tz;
 	double time_us;
 	unsigned long mask;
@@ -379,11 +362,11 @@ void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 	if (load != 100) {
 		while (1) {
 			/* Generate load (100%) */
-			dhrystone_start_time = dtime();
-			dhryStone(200000);
-			dhrystone_end_time = dtime();
+			workload_start_time = dtime();
+			workload(200000);
+			workload_end_time = dtime();
 			active_time_us =
-				(dhrystone_end_time - dhrystone_start_time) * 1.0e6;
+				(workload_end_time - workload_start_time) * 1.0e6;
 			dprintf("%s(): CPU%d running time: %dus\n", __func__,
 				cpu, (unsigned int) active_time_us);
 
@@ -427,7 +410,7 @@ void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 		}
 	} else {
 		while (1) {
-			dhryStone(1000000);
+			workload(1000000);
 			gettimeofday(&tv_cpuloadgen, &tz);
 			time_us = ((double) tv_cpuloadgen.tv_sec
 				+ ((double) tv_cpuloadgen.tv_usec * 1.0e-6));
@@ -443,169 +426,9 @@ void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 }
 
 
-void dhryStone(unsigned int iterations)
+void workload(unsigned int iterations)
 {
-	One_Fifty Int_1_Loc;
-	REG One_Fifty Int_2_Loc;
-	One_Fifty Int_3_Loc;
-	REG char Ch_Index;
-	Enumeration Enum_Loc;
-	Str_30 Str_1_Loc;
-	Str_30 Str_2_Loc;
-	REG int Run_Index;
-	REG int Number_Of_Runs;
-
-	FILE *Ap;
-	unsigned int mrcData;
-
-	Next_Ptr_Glob = (Rec_Pointer) malloc(sizeof(Rec_Type));
-	Ptr_Glob = (Rec_Pointer) malloc(sizeof (Rec_Type));
-
-	Ptr_Glob->Ptr_Comp = Next_Ptr_Glob;
-	Ptr_Glob->Discr = Ident_1;
-	Ptr_Glob->variant.var_1.Enum_Comp = Ident_3;
-	Ptr_Glob->variant.var_1.Int_Comp = 40;
-	strcpy (Ptr_Glob->variant.var_1.Str_Comp,
-	"DHRYSTONE PROGRAM, SOME STRING");
-	strcpy (Str_1_Loc, "DHRYSTONE PROGRAM, 1'ST STRING");
-
-	Arr_2_Glob [8][7] = 10;
-    /* Was missing in published program. Without this statement,
-    Arr_2_Glob [8][7] would have an undefined value.
-    Warning: With 16-Bit processors and Number_Of_Runs > 32000,
-    overflow may occur for this array element. */
-
-    Number_Of_Runs = iterations;
-	for (Run_Index = 1; Run_Index <= Number_Of_Runs; ++Run_Index) {
-		Proc_5();
-		Proc_4();
-		/* Ch_1_Glob == 'A', Ch_2_Glob == 'B', Bool_Glob == true */
-		Int_1_Loc = 2;
-		Int_2_Loc = 3;
-		strcpy (Str_2_Loc, "DHRYSTONE PROGRAM, 2'ND STRING");
-		Enum_Loc = Ident_2;
-		Bool_Glob = ! Func_2 (Str_1_Loc, Str_2_Loc);
-		/* Bool_Glob == 1 */
-		while (Int_1_Loc < Int_2_Loc) { /* loop body executed once */
-			Int_3_Loc = 5 * Int_1_Loc - Int_2_Loc;
-			/* Int_3_Loc == 7 */
-			Proc_7 (Int_1_Loc, Int_2_Loc, &Int_3_Loc);
-			/* Int_3_Loc == 7 */
-			Int_1_Loc += 1;
-		}
-		/* Int_1_Loc == 3, Int_2_Loc == 3, Int_3_Loc == 7 */
-		Proc_8 (Arr_1_Glob, Arr_2_Glob, Int_1_Loc, Int_3_Loc);
-		/* Int_Glob == 5 */
-		Proc_1 (Ptr_Glob);
-		for (Ch_Index = 'A'; Ch_Index <= Ch_2_Glob; ++Ch_Index) {
-		/* loop body executed twice */
-			if (Enum_Loc == Func_1 (Ch_Index, 'C')) {
-				/* then, not executed */
-				Proc_6 (Ident_1, &Enum_Loc);
-				strcpy (Str_2_Loc,
-					"DHRYSTONE PROGRAM, 3'RD STRING");
-				Int_2_Loc = Run_Index;
-				Int_Glob = Run_Index;
-			}
-		}
-		/* Int_1_Loc == 3, Int_2_Loc == 3, Int_3_Loc == 7 */
-		Int_2_Loc = Int_2_Loc * Int_1_Loc;
-		Int_1_Loc = Int_2_Loc / Int_3_Loc;
-		Int_2_Loc = 7 * (Int_2_Loc - Int_3_Loc) - Int_1_Loc;
-		/* Int_1_Loc == 1, Int_2_Loc == 13, Int_3_Loc == 7 */
-		Proc_2 (&Int_1_Loc);
-		/* Int_1_Loc == 5 */
-	}
+    while (iterations-- > 0) {
+        sqrt(rand());
+    }
 }
-
-
-Proc_1 (Ptr_Val_Par)
-/******************/
-
-REG Rec_Pointer Ptr_Val_Par;
-    /* executed once */
-{
-  REG Rec_Pointer Next_Record = Ptr_Val_Par->Ptr_Comp;
-                                        /* == Ptr_Glob_Next */
-  /* Local variable, initialized with Ptr_Val_Par->Ptr_Comp,    */
-  /* corresponds to "rename" in Ada, "with" in Pascal           */
-
-  structassign (*Ptr_Val_Par->Ptr_Comp, *Ptr_Glob);
-  Ptr_Val_Par->variant.var_1.Int_Comp = 5;
-  Next_Record->variant.var_1.Int_Comp
-        = Ptr_Val_Par->variant.var_1.Int_Comp;
-  Next_Record->Ptr_Comp = Ptr_Val_Par->Ptr_Comp;
-  Proc_3 (&Next_Record->Ptr_Comp);
-    /* Ptr_Val_Par->Ptr_Comp->Ptr_Comp
-                        == Ptr_Glob->Ptr_Comp */
-  if (Next_Record->Discr == Ident_1)
-    /* then, executed */
-  {
-    Next_Record->variant.var_1.Int_Comp = 6;
-    Proc_6 (Ptr_Val_Par->variant.var_1.Enum_Comp,
-           &Next_Record->variant.var_1.Enum_Comp);
-    Next_Record->Ptr_Comp = Ptr_Glob->Ptr_Comp;
-    Proc_7 (Next_Record->variant.var_1.Int_Comp, 10,
-           &Next_Record->variant.var_1.Int_Comp);
-  }
-  else /* not executed */
-    structassign (*Ptr_Val_Par, *Ptr_Val_Par->Ptr_Comp);
-} /* Proc_1 */
-
-Proc_2 (Int_Par_Ref)
-/******************/
-    /* executed once */
-    /* *Int_Par_Ref == 1, becomes 4 */
-
-One_Fifty   *Int_Par_Ref;
-{
-  One_Fifty  Int_Loc;
-  Enumeration   Enum_Loc;
-
-  Int_Loc = *Int_Par_Ref + 10;
-  do /* executed once */
-    if (Ch_1_Glob == 'A')
-      /* then, executed */
-    {
-      Int_Loc -= 1;
-      *Int_Par_Ref = Int_Loc - Int_Glob;
-      Enum_Loc = Ident_1;
-    } /* if */
-  while (Enum_Loc != Ident_1); /* true */
-} /* Proc_2 */
-
-
-Proc_3 (Ptr_Ref_Par)
-/******************/
-    /* executed once */
-    /* Ptr_Ref_Par becomes Ptr_Glob */
-
-Rec_Pointer *Ptr_Ref_Par;
-
-{
-  if (Ptr_Glob != Null)
-    /* then, executed */
-    *Ptr_Ref_Par = Ptr_Glob->Ptr_Comp;
-  Proc_7 (10, Int_Glob, &Ptr_Glob->variant.var_1.Int_Comp);
-} /* Proc_3 */
-
-
-Proc_4 () /* without parameters */
-/*******/
-    /* executed once */
-{
-  Boolean Bool_Loc;
-
-  Bool_Loc = Ch_1_Glob == 'A';
-  Bool_Glob = Bool_Loc | Bool_Glob;
-  Ch_2_Glob = 'B';
-} /* Proc_4 */
-
-
-Proc_5 () /* without parameters */
-/*******/
-    /* executed once */
-{
-  Ch_1_Glob = 'A';
-  Bool_Glob = false;
-} /* Proc_5 */
