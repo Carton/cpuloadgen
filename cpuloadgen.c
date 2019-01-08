@@ -57,6 +57,7 @@
 #include <pthread.h>
 
 #define CPULOADGEN_REVISION ((const char *) "0.94")
+#define UNUSED __attribute__((__unused__))
 
 /* #define CPU_AFFINITY */
 /* #define DEBUG */
@@ -334,7 +335,7 @@ int main(int argc, char *argv[])
  *			principle on it to make average CPU load vary between
  *			0 and 100%
  *//*------------------------------------------------------------------------ */
-void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
+void loadgen(unsigned int cpu UNUSED, unsigned int load, unsigned int duration)
 {
 	double workload_start_time, workload_end_time;
 	double idle_time_us;
