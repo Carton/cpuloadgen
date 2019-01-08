@@ -58,7 +58,7 @@
 
 #define CPULOADGEN_REVISION ((const char *) "0.94")
 
-
+/* #define CPU_AFFINITY */
 /* #define DEBUG */
 #ifdef DEBUG
 #define dprintf(format, ...)	 printf(format, ## __VA_ARGS__)
@@ -282,6 +282,7 @@ int main(int argc, char *argv[])
 
 	/* Start load generation on cores accordingly */
 	for (i = 0; i < cpu_count; i++) {
+		int cpu;
 		if (cpuloads[i] == -1) {
 			dprintf("main: no load to be generated on CPU%d\n", i);
 			continue;
@@ -294,7 +295,8 @@ int main(int argc, char *argv[])
 		 * thread_loadgen() after the value was retrieved and saved.
 		 */
 		pthread_mutex_lock(&mutex1);
-		ret = pthread_create(&threads[i], NULL, thread_loadgen, &i);
+		cpu = i;
+		ret = pthread_create(&threads[i], NULL, thread_loadgen, &cpu);
 		if (ret != 0) {
 			fprintf(stderr, "cpuloadgen: failed to fork %d! (%d)",
 			i, ret);
@@ -344,6 +346,7 @@ void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 #endif
 	struct timezone tz;
 	double time_us;
+#ifdef CPU_AFFINITY
 	unsigned long mask;
 	unsigned int len = sizeof(mask);
 	cpu_set_t set;
@@ -352,6 +355,9 @@ void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 	CPU_SET(cpu, &set);
 	sched_setaffinity(0, len, &set);
 	printf("Generating %3d%% load on CPU%d...\n", load, cpu);
+#else
+	printf("Generating %3d%% load...\n", load);
+#endif
 
 	gettimeofday(&tv_cpuloadgen_start, &tz);
 	loadgen_start_time_us = ((double) tv_cpuloadgen_start.tv_sec
@@ -363,7 +369,7 @@ void loadgen(unsigned int cpu, unsigned int load, unsigned int duration)
 		while (1) {
 			/* Generate load (100%) */
 			workload_start_time = dtime();
-			workload(200000);
+			workload(50000);
 			workload_end_time = dtime();
 			active_time_us =
 				(workload_end_time - workload_start_time) * 1.0e6;
