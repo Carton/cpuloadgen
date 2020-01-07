@@ -3,7 +3,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := cpuloadgen.c timers_b.c
 
-LOCAL_CFLAGS := -Wall -Wformat=2 -pthread
+LOCAL_CFLAGS := -Wall -pthread
 
 LOCAL_MODULE := cpuloadgen
 
